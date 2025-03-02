@@ -1,0 +1,291 @@
+--1. Report the min and max of AQI value for each State during each quarter of
+--years.
+SELECT 
+    {[Measures].[Minimum AQI], [Measures].[Maximum AQI]} ON COLUMNS,  
+    NON EMPTY 
+    FILTER(
+        [County Dimension].[State Name].MEMBERS, 
+        [County Dimension].[State Name].CurrentMember.Name <> "All"  
+    )*
+    FILTER(
+        [Date Dimension].[Year].MEMBERS, 
+        [Date Dimension].[Year].CurrentMember.Name <> "All"  
+    ) *
+    FILTER(
+        [Date Dimension].[Quater].MEMBERS, 
+        [Date Dimension].[Quater].CurrentMember.Name <> "All"  
+    )  ON ROWS  
+FROM [DATH DDS]
+
+
+--2. Report the mean and the standard deviation of AQI value for each State during
+--each quarter of years.
+WITH 
+    -- Tính trung bình AQI
+    MEMBER [Measures].[Mean AQI] AS
+        IIF(
+            [Measures].[AQI Fact Table Count] = 0, 
+            NULL, 
+            [Measures].[AQI] / [Measures].[AQI Fact Table Count]
+        )
+    
+    -- Tính phương sai (variance) AQI
+    MEMBER [Measures].[Variance AQI] AS
+        IIF(
+            [Measures].[AQI Fact Table Count] = 0,
+            NULL,
+            (
+                [Measures].[AQI] - [Measures].[Mean AQI]
+            ) * 
+            (
+                [Measures].[AQI] - [Measures].[Mean AQI]
+            ) / [Measures].[AQI Fact Table Count]
+        )
+
+    -- Tính độ lệch chuẩn (Standard Deviation)
+    MEMBER [Measures].[std AQI] AS
+        IIF(
+            [Measures].[Variance AQI] = 0,
+            NULL,
+            [Measures].[Variance AQI] ^ 0.5
+        )
+SELECT 
+    {[Measures].[Mean AQI], [Measures].[std AQI]}   ON COLUMNS,  
+    NON EMPTY 
+    FILTER(
+        [County Dimension].[State Name].MEMBERS, 
+        [County Dimension].[State Name].CurrentMember.Name <> "All"  
+    )*
+    FILTER(
+        [Date Dimension].[Year].MEMBERS, 
+        [Date Dimension].[Year].CurrentMember.Name <> "All"  
+    ) *
+    FILTER(
+        [Date Dimension].[Quater].MEMBERS, 
+        [Date Dimension].[Quater].CurrentMember.Name <> "All"  
+    )  ON ROWS  
+FROM [DATH DDS]
+
+
+--3.  Report the number of days, and the mean AQI value where the air quality is rated
+--as "very unhealthy" or worse for each State and County.
+WITH MEMBER [Measures].[MeanAQI] AS
+ (
+	[Measures].[AQI]/[Measures].[AQI Fact Table Count]
+ )
+ MEMBER [Measures].[UnhealthyDays] AS
+ (
+	[Measures].[AQI Fact Table Count]
+ )
+ SELECT NON EMPTY { [Measures].[UnhealthyDays],[Measures].[MeanAQI] } ON COLUMNS,
+	 NON EMPTY {
+		( [County Dimension].[State Name].[State Name].ALLMEMBERS 
+			*
+		[County Dimension].[County Name].[County Name].ALLMEMBERS ) 
+	 }
+	 ON ROWS
+	 
+	 FROM ( 
+		SELECT ( {
+			[AQI Category Dim].[Levels Of Concern].&[Very Unhealthy]
+			, [AQI Category Dim].[Levels Of Concern].&[Hazardous] 
+		} ) ON COLUMNS 
+
+	FROM [DATH DDS]) 
+ WHERE ( [AQI Category Dim].[Levels Of Concern].CurrentMember ) 
+
+
+ --4. For the four following states: Hawaii, Alaska, Illinois and Delaware, count the
+--number of days in each air quality Category (Good, Moderate,etc.) by County.
+SELECT 
+    NON EMPTY { [Measures].[NumberOfDays] } ON COLUMNS,
+    NON EMPTY 
+    CROSSJOIN(
+        FILTER(
+            [County Dimension].[State Name].[State Name].ALLMEMBERS, 
+            [County Dimension].[State Name].CurrentMember.Name = "Alaska" OR
+            [County Dimension].[State Name].CurrentMember.Name = "Delaware" OR
+            [County Dimension].[State Name].CurrentMember.Name = "Hawaii" OR
+            [County Dimension].[State Name].CurrentMember.Name = "Illinois"
+        ),
+        [County Dimension].[County Name].[County Name].ALLMEMBERS,
+        [AQI Category Dim].[Levels Of Concern].[Levels Of Concern].ALLMEMBERS
+    ) ON ROWS
+FROM [DATH DDS]
+
+
+--5. For the four following states: Hawaii, Alaska, Illinois and Delaware, compute the
+--mean AQI value by quarters.
+SELECT 
+    [Measures].[Mean_AQI] ON COLUMNS,  
+    NON EMPTY 
+    FILTER(
+        [County Dimension].[State Name].MEMBERS, 
+        [County Dimension].[State Name].CurrentMember.Name = "Hawaii" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Alaska" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Illinois" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Delaware"  
+    ) *
+    FILTER(
+        [Date Dimension].[Year].MEMBERS, 
+        [Date Dimension].[Year].CurrentMember.Name <> "All"  
+    ) *
+    FILTER(
+        [Date Dimension].[Quater].MEMBERS, 
+        [Date Dimension].[Quater].CurrentMember.Name <> "All"  
+    ) ON ROWS  
+FROM [DATH DDS]
+
+
+--6. Design a report to demonstrate the AQI fluctuation trends over the year for the four
+-- following states: Hawaii, Alaska, Illinois and California.
+SELECT 
+    [Measures].[Mean_AQI] ON COLUMNS,  
+    NON EMPTY 
+    FILTER(
+        [County Dimension].[State Name].MEMBERS, 
+        [County Dimension].[State Name].CurrentMember.Name = "Hawaii" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Alaska" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Illinois" OR 
+        [County Dimension].[State Name].CurrentMember.Name = "Delaware"  
+    ) *
+    FILTER(
+        [Date Dimension].[Year].MEMBERS, 
+        [Date Dimension].[Year].CurrentMember.Name <> "All"  
+    ) *
+    FILTER(
+        [Date Dimension].[Month].MEMBERS, 
+        [Date Dimension].[Month].CurrentMember.Name <> "All"  
+    ) ON ROWS  
+FROM [DATH DDS]
+
+
+--8 Use a regional map to visually represent (by color) the mean AQI value in regionsduring a year	
+WITH 
+MEMBER [Measures].[Mean AQI] AS 
+    IIF(
+        [Measures].[AQI Fact Table Count] = 0, 
+        NULL, 
+        [Measures].[AQI] / [Measures].[AQI Fact Table Count]
+    )
+SELECT 
+	NON EMPTY 
+		CrossJoin(
+			[Date Dimension].[Hierarchy].[Year].Members,
+			[Date Dimension].[Month].Members AS Month
+		) ON ROWS,
+	NON EMPTY 
+		FILTER(
+			[County Dimension].[State Name].Members * [Measures].[Mean AQI],
+			NOT ISEMPTY([Measures].[Mean AQI]) AND [Measures].[Mean AQI] <> 0
+		)ON COLUMNS
+FROM 
+	[DATH DDS]
+
+
+-- Cau 9. Report the mean, the standard deviation, min and max of AQI value group by
+--State and County during each quarter of the year.
+
+WITH 
+    -- Tính trung bình AQI
+    MEMBER [Measures].[Mean AQI] AS
+        IIF(
+            [Measures].[AQI Fact Table Count] = 0, 
+            NULL, 
+            [Measures].[AQI] / [Measures].[AQI Fact Table Count]
+        )
+    
+    -- Tính phương sai (variance) AQI
+    MEMBER [Measures].[Variance AQI] AS
+        IIF(
+            [Measures].[AQI Fact Table Count] = 0,
+            NULL,
+            (
+                [Measures].[AQI] - [Measures].[Mean AQI]
+            ) * 
+            (
+                [Measures].[AQI] - [Measures].[Mean AQI]
+            ) / [Measures].[AQI Fact Table Count]
+        )
+
+    -- Tính độ lệch chuẩn (Standard Deviation)
+    MEMBER [Measures].[std AQI] AS
+        IIF(
+            [Measures].[Variance AQI] = 0,
+            NULL,
+            [Measures].[Variance AQI] ^ 0.5
+        )
+SELECT 
+    {[Measures].[Minimum AQI], [Measures].[Maximum AQI], [Measures].[Mean AQI], [Measures].[std AQI] }   ON COLUMNS,  
+    NON EMPTY 
+    FILTER(
+        [County Dimension].[State Name].MEMBERS, 
+        [County Dimension].[State Name].CurrentMember.Name <> "All"  
+    )*
+    FILTER(
+        [County Dimension].[County Name].MEMBERS, 
+        [County Dimension].[County Name].CurrentMember.Name <> "All"  
+    )*
+    FILTER(
+        [Date Dimension].[Year].MEMBERS, 
+        [Date Dimension].[Year].CurrentMember.Name <> "All"  
+    ) *
+    FILTER(
+        [Date Dimension].[Quater].MEMBERS, 
+        [Date Dimension].[Quater].CurrentMember.Name <> "All"  
+    )  ON ROWS  
+FROM [DATH DDS]
+
+
+ --cau 10. Report the mean AQI value by State, Category, DayLightSaving over years.
+ SELECT NON EMPTY { [Measures].[Mean_AQI] } ON COLUMNS,
+ NON EMPTY 
+	{ (
+		[County Dimension].[State Name].[State Name].ALLMEMBERS * 
+		[Date Dimension].[Daylight Saving].[Daylight Saving].ALLMEMBERS *
+		[AQI Category Dim].[Levels Of Concern].[Levels Of Concern].ALLMEMBERS * [Date Dimension].[Year].[Year].ALLMEMBERS 
+	) }
+ON ROWS 
+ FROM [DATH DDS] 
+
+
+-- Cau 11. Count the number of days by State, Category in each month.
+WITH 
+    MEMBER [Measures].[Distinct Day Count] AS
+        COUNT(
+            NONEMPTY(
+                [Date Dimension].[Day].MEMBERS,
+                {[Measures].[AQI Fact Table Count]}
+            )
+        )
+SELECT
+    {[Measures].[Distinct Day Count]} ON COLUMNS,
+    NONEMPTY(
+        CROSSJOIN(
+            FILTER(
+                [County Dimension].[State Name].MEMBERS,
+                [County Dimension].[State Name].CurrentMember.Name <> "All"
+            ),
+            FILTER(
+                [AQI Category Dim].[Category SK].MEMBERS,
+                [AQI Category Dim].[Category SK].CurrentMember.Name <> "All"
+            ),
+            FILTER(
+                [Date Dimension].[Month].MEMBERS,
+                [Date Dimension].[Month].CurrentMember.Name <> "All"
+            )
+        )
+    ) ON ROWS
+FROM [DATH DDS]
+
+
+--cau 12. Report the number of days by Category and Defining Parameter.
+
+SELECT NON EMPTY { [Measures].[NumberOfDays] } ON COLUMNS,
+	 NON EMPTY 
+		{ (
+			[AQI Category Dim].[Levels Of Concern].[Levels Of Concern].ALLMEMBERS 
+			* 
+			[Defining Para Dim].[Param Name].[Param Name].ALLMEMBERS 
+	) } ON ROWS 
+FROM [DATH DDS] 
